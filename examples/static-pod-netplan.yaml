@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: openstack-port-provider
+  labels:
+    name: openstack-port-provider
+spec:
+  enableServiceLinks: true
+  hostNetwork: true
+  hostPID: true
+  containers:
+    - name: openstack-port-provider
+      image: ghcr.io/<github orga>/openstack-port-provider:<gitsha/tag>
+      env:
+        - name: NODENAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+      args:
+        - --cloud-config=/etc/kubernetes/cloud.config
+        - --subnet=<subnet to use>
+        - --networking-config-templates=/etc/os-port-provider/templates
+        - --networking-configst-destination=/etc/netplan
+        - --apply-cmd=nsenter --target=1 --mount --uts --ipc --net --pid -- netplan --debug apply
+        - --log-level=INFO
+      resources:
+        limits:
+          memory: "128Mi"
+          cpu: "500m"
+      volumeMounts:
+        - mountPath: /etc/kubernetes/cloud.config
+          name: cloud-config
+        - mountPath: /etc/netplan
+          name: netplan-config
+        - mountPath: /etc/os-port-provider/templates
+          name: templates
+      securityContext:
+        privileged: true
+  volumes:
+    - name: cloud-config
+      hostPath:
+        path: /etc/kubernetes/cloud.config
+    - name: netplan-config
+      hostPath:
+        path: /etc/netplan
+    - name: templates
+      hostPath:
+        path: /etc/os-port-provider/templates
