@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "openstack-port-provider"
+version = "0.1.0"
+description = ""
+authors = ["ederst"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+openstacksdk = "^0.99.0"
+typer = "^0.5.0"
+
+[tool.poetry.dev-dependencies]
+flake8 = "^4.0.1"
+black = "^22.6.0"
+rope = "^1.2.0"
+
+[tool.poetry.scripts]
+os_port_provider = "openstack_port_provider.cmd.main:app"
+
+[tool.black]
+skip-string-normalization = true
+line-length = 120
+
+[tool.flake8]
+max-line-length = 120
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
