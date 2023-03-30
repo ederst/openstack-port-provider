@@ -1,5 +1,6 @@
 import configparser
 import logging
+import re
 import time
 from enum import Enum
 from pathlib import Path
@@ -133,7 +134,7 @@ def main(
     node_name: str = _node_name_option(),
     port_name_prefix: str = _port_name_prefix_option(),
     port_tags: List[str] = _port_tags_option(),
-    cleanup_unused_ports: bool = typer.Option(default=False),
+    cleanup_node_pattern: str = typer.Option(default=None),
     wait_for_port: bool = typer.Option(default=False),
     subnets: List[str] = _subnets_option(),
     networking_config_type: NetworkingConfigType = _networking_config_type_option(),
@@ -153,9 +154,14 @@ def main(
     logger = logging.getLogger(__name__)
 
     # validate
-    if cleanup_unused_ports and not port_tags:
+    if cleanup_node_pattern and not port_tags:
         logger.error("Please specify port tags when enabling cleanup.")
         raise typer.Exit(1)
+
+    do_cleanup = False
+    if cleanup_node_pattern:
+        do_cleanup = re.match(cleanup_node_pattern, node_name) != None
+    logger.info(f"Will clean up unused ports: {do_cleanup}")
 
     # setup OS connection
     cloud_config_parser = configparser.ConfigParser()
@@ -198,7 +204,7 @@ def main(
     # main loop
     while True:
         # cleanup unused ports
-        if cleanup_unused_ports:
+        if do_cleanup:
             _cleanup_ports(os_conn, port_tags, logger)
 
         # get actual subnet ids from the ports attached to the server
