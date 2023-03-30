@@ -112,6 +112,21 @@ def _cleanup_ports(os_conn: openstack_connection.Connection, port_tags: List[str
                 logger.warn(f"Error while deleting unused port {os_port.name}: {e}")
 
 
+def _wait_for_port(
+    os_conn: openstack_connection.Connection, os_port_name: str, max_retries: int = 10, sleepy_time: int = 5
+):
+    # Note(sprietl): quick and dirty implementation, no error handling atm
+    current_try = 0
+    while True:
+        os_port = os_conn.get_port(os_port_name)
+        if os_port.status != PORT_DOWN_STATUS:
+            break
+        current_try += 1
+        if current_try > max_retries:
+            break
+        time.sleep(sleepy_time)
+
+
 @app.command()
 def main(
     cloud_config: Path = _cloud_config_option(),
@@ -119,6 +134,7 @@ def main(
     port_name_prefix: str = _port_name_prefix_option(),
     port_tags: List[str] = _port_tags_option(),
     cleanup_unused_ports: bool = typer.Option(default=False),
+    wait_for_port: bool = typer.Option(default=False),
     subnets: List[str] = _subnets_option(),
     networking_config_type: NetworkingConfigType = _networking_config_type_option(),
     networking_config_destination: Path = _networking_config_destination_option(),
@@ -227,7 +243,13 @@ def main(
                 os_conn.network.set_tags(os_port, port_tags)
 
             os_conn.compute.create_server_interface(os_server.id, port_id=os_port.id)
+
             os_actual_ports.append(os_port)
+
+            # wait for port become active
+            if wait_for_port:
+                logger.debug(f"Waiting for port {os_port_name}")
+                _wait_for_port(os_conn, os_port_name)
 
         # create networking config for each port
         networking_config_handler.create(
