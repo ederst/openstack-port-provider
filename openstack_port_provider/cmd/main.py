@@ -7,6 +7,7 @@ from typing import List
 
 import openstack.connection as openstack_connection
 import typer
+from openstack.exceptions import OpenStackCloudException
 
 from ..networking import NetworkingConfigType, get_networking_config_handler
 
@@ -14,6 +15,8 @@ app = typer.Typer()
 
 DEFAULT_PORT_NAME_PREFIX = "opp"
 NODE_NAME_ENV_VAR = "NODENAME"
+
+PORT_DOWN_STATUS = "DOWN"
 
 LOG_FORMAT = "%(asctime)s.%(msecs)-3d %(levelname)-8s [%(filename)s:%(lineno)-3d] %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -98,12 +101,24 @@ def _reconciliation_interval_option() -> typer.Option:
     return typer.Option(default=30, help="Reconciliation intervall in seconds", min=0)
 
 
+def _cleanup_ports(os_conn: openstack_connection.Connection, port_tags: List[str], logger: logging.Logger):
+    os_all_ports = os_conn.list_ports(filters={'tags': port_tags})
+    for os_port in os_all_ports:
+        if os_port.status == PORT_DOWN_STATUS:
+            logger.info(f"Delete unused port {os_port.name} ({os_port.id}, {os_port.status}).")
+            try:
+                os_conn.delete_port(os_port.id)
+            except OpenStackCloudException as e:
+                logger.warn(f"Error while deleting unused port {os_port.name}: {e}")
+
+
 @app.command()
 def main(
     cloud_config: Path = _cloud_config_option(),
     node_name: str = _node_name_option(),
     port_name_prefix: str = _port_name_prefix_option(),
     port_tags: List[str] = _port_tags_option(),
+    cleanup_unused_ports: bool = typer.Option(default=False),
     subnets: List[str] = _subnets_option(),
     networking_config_type: NetworkingConfigType = _networking_config_type_option(),
     networking_config_destination: Path = _networking_config_destination_option(),
@@ -120,6 +135,11 @@ def main(
         handlers=[TyperLoggingHandler()],
     )
     logger = logging.getLogger(__name__)
+
+    # validate
+    if cleanup_unused_ports and not port_tags:
+        logger.error("Please specify port tags when enabling cleanup.")
+        raise typer.Exit(1)
 
     # setup OS connection
     cloud_config_parser = configparser.ConfigParser()
@@ -161,6 +181,10 @@ def main(
 
     # main loop
     while True:
+        # cleanup unused ports
+        if cleanup_unused_ports:
+            _cleanup_ports(os_conn, port_tags, logger)
+
         # get actual subnet ids from the ports attached to the server
         os_actual_ports = os_conn.list_ports(filters={'device_id': os_server.id})
         os_actual_subnet_ids = []
