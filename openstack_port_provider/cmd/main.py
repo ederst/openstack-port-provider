@@ -56,6 +56,10 @@ def _port_name_prefix_option() -> typer.Option:
     return typer.Option(default=DEFAULT_PORT_NAME_PREFIX)
 
 
+def _port_tags_option() -> typer.Option:
+    return typer.Option([], "--port-tag", help="Tags applied to managed ports")
+
+
 def _log_level_option() -> typer.Option:
     return typer.Option(default=LogLevel.INFO)
 
@@ -99,6 +103,7 @@ def main(
     cloud_config: Path = _cloud_config_option(),
     node_name: str = _node_name_option(),
     port_name_prefix: str = _port_name_prefix_option(),
+    port_tags: List[str] = _port_tags_option(),
     subnets: List[str] = _subnets_option(),
     networking_config_type: NetworkingConfigType = _networking_config_type_option(),
     networking_config_destination: Path = _networking_config_destination_option(),
@@ -192,6 +197,10 @@ def main(
                     # Note(sprietl): For now we only create ports with one IP
                     fixed_ips=[{'subnet_id': os_missing_subnet_id}],
                 )
+
+            # tag ports
+            if port_tags:
+                os_conn.network.set_tags(os_port, port_tags)
 
             os_conn.compute.create_server_interface(os_server.id, port_id=os_port.id)
             os_actual_ports.append(os_port)
