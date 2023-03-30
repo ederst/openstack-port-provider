@@ -12,7 +12,7 @@ from ..networking import NetworkingConfigType, get_networking_config_handler
 
 app = typer.Typer()
 
-PORT_NAME_PREFIX = "opp"
+DEFAULT_PORT_NAME_PREFIX = "opp"
 NODE_NAME_ENV_VAR = "NODENAME"
 
 LOG_FORMAT = "%(asctime)s.%(msecs)-3d %(levelname)-8s [%(filename)s:%(lineno)-3d] %(message)s"
@@ -50,6 +50,10 @@ def _subnets_option() -> typer.Option:
 
 def _node_name_option() -> typer.Option:
     return typer.Option(..., envvar=NODE_NAME_ENV_VAR)
+
+
+def _port_name_prefix_option() -> typer.Option:
+    return typer.Option(default=DEFAULT_PORT_NAME_PREFIX)
 
 
 def _log_level_option() -> typer.Option:
@@ -94,6 +98,7 @@ def _reconciliation_interval_option() -> typer.Option:
 def main(
     cloud_config: Path = _cloud_config_option(),
     node_name: str = _node_name_option(),
+    port_name_prefix: str = _port_name_prefix_option(),
     subnets: List[str] = _subnets_option(),
     networking_config_type: NetworkingConfigType = _networking_config_type_option(),
     networking_config_destination: Path = _networking_config_destination_option(),
@@ -177,7 +182,7 @@ def main(
             logger.info(f"Will add port with subnet '{os_missing_subnet.name}' to server '{os_server.name}'.")
 
             # TODO(sprietl): Make name of port and finding more general, to reuse previously created ones
-            os_port_name = f"{PORT_NAME_PREFIX}-{os_server.name}-{os_missing_subnet.name}"
+            os_port_name = f"{port_name_prefix}-{os_server.name}-{os_missing_subnet.name}"
             os_port = os_conn.get_port(os_port_name)
             if not os_port:
                 logger.info(f"Will create a new port because '{os_port_name}' does not exist.")
