@@ -250,22 +250,20 @@ def main(
 
             os_conn.compute.create_server_interface(os_server.id, port_id=os_port.id)
 
-            os_actual_ports.append(os_port)
-
             # wait for port become active
             if wait_for_port:
                 logger.debug(f"Waiting for port {os_port_name}")
                 _wait_for_port(os_conn, os_port_name)
 
-        # create networking config for each port
-        networking_config_handler.create(
-            os_ports=os_actual_ports,
-            os_subnets=os_expected_subnets,
-            config_destination=networking_config_destination,
-            config_templates=networking_config_templates,
-        )
+            # create networking config for the port
+            networking_config_handler.create(
+                os_port=os_port,
+                os_subnet=os_missing_subnet,
+                config_destination=networking_config_destination,
+                config_templates=networking_config_templates,
+            )
 
-        # apply networking config
+        # apply networking config if necessary
         networking_config_handler.apply()
 
         logger.debug(f"Wait for {reconciliation_interval}s until reconciliation.")

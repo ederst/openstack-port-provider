@@ -21,8 +21,8 @@ class NetplanNetworkingConfigHandler(BaseNetworkingConfigHandler):
 
     def create(
         self,
-        os_ports: Any,
-        os_subnets: Any,
+        os_port: Any,
+        os_subnet: Any,
         config_destination: Path,
         config_templates: Path,
     ) -> None:
@@ -31,51 +31,40 @@ class NetplanNetworkingConfigHandler(BaseNetworkingConfigHandler):
         #   But for complexity reasons we leave it for now like this.
         if_number = INTERFACE_NUMBER_OFFSET
 
-        for os_port in os_ports:
-            if len(os_port.fixed_ips) > 1:
-                self.logger.warning(f"Port '{os_port.name}' has more than one IP address ({os_port.fixed_ips}).")
+        if len(os_port.fixed_ips) > 1:
+            self.logger.warning(f"Port '{os_port.name}' has more than one IP address ({os_port.fixed_ips}).")
 
-            # Note(sprietl): For now we only get the first fixed IP
-            os_port_fixed_ip = os_port.fixed_ips[0]
-            os_port_subnet_id = os_port_fixed_ip['subnet_id']
+        # Note(sprietl): For now we only get the first fixed IP
+        os_port_fixed_ip = os_port.fixed_ips[0]
+        os_port_subnet_id = os_port_fixed_ip['subnet_id']
 
-            # ignore ports with subnets not in expected subnets
-            if os_port_subnet_id not in os_subnets:
-                self.logger.debug(
-                    msg=(
-                        f"Ignore port '{os_port.name}'"
-                        f"because subnet with ID '{os_port_subnet_id}' does not match any of the provided subnets."
-                    )
-                )
-                continue
+        if os_port_subnet_id != os_subnet.id:
+            raise ValueError(f"Provided port '{os_port.name}' is not in provided subnet '{os_subnet.name}'")
 
-            os_subnet = os_subnets[os_port_subnet_id]
+        networking_if_name = f"ens{if_number}"
+        config_base_name = f"51-{NAME_PREFIX}-{networking_if_name}.yaml"
+        config_path = config_destination / config_base_name
 
-            networking_if_name = f"ens{if_number}"
-            config_base_name = f"51-{NAME_PREFIX}-{networking_if_name}.yaml"
-            config_path = config_destination / config_base_name
+        config_template_base_name = f"{os_subnet.name}.yaml"
+        config_templates_path = config_templates / config_template_base_name
 
-            if not config_path.is_file():
-                config_template_base_name = f"{os_subnet.name}.yaml"
-                config_templates_path = config_templates / config_template_base_name
+        with open(config_templates_path, "r") as f:
+            networking_config = yaml.safe_load(f)
 
-                with open(config_templates_path, "r") as f:
-                    networking_config = yaml.safe_load(f)
+        networking_if_address = f"{os_port_fixed_ip['ip_address']}/{os_subnet.cidr.split('/')[-1]}"
 
-                networking_if_address = f"{os_port_fixed_ip['ip_address']}/{os_subnet.cidr.split('/')[-1]}"
+        networking_if_config = networking_config['network']['ethernets'].pop("ensX")
+        networking_if_config['addresses'] = [networking_if_address]
+        networking_if_config['match']['macaddress'] = os_port['mac_address']
+        networking_if_config['set-name'] = networking_if_name
+        networking_config['network']['ethernets'][networking_if_name] = networking_if_config
 
-                networking_if_config = networking_config['network']['ethernets'].pop("ensX")
-                networking_if_config['addresses'] = [networking_if_address]
-                networking_if_config['match']['macaddress'] = os_port['mac_address']
-                networking_if_config['set-name'] = networking_if_name
-                networking_config['network']['ethernets'][networking_if_name] = networking_if_config
+        with open(config_path, "w") as f:
+            networking_config_yaml = yaml.safe_dump(networking_config)
+            self.logger.debug(networking_config_yaml)
+            f.write(networking_config_yaml)
 
-                with open(config_path, "w") as f:
-                    networking_config_yaml = yaml.safe_dump(networking_config)
-                    self.logger.debug(networking_config_yaml)
-                    f.write(networking_config_yaml)
-
-                self.should_apply = True
+        self.should_apply = True
 
     def _format_output(self, output: bytes, indent: int = 4) -> str:
         lines = output.decode().strip("\n").splitlines()
