@@ -105,8 +105,10 @@ def _reconciliation_interval_option() -> typer.Option:
 def _cleanup_ports(os_conn: openstack_connection.Connection, port_tags: List[str], logger: logging.Logger):
     os_all_ports = os_conn.list_ports(filters={'tags': port_tags})
     for os_port in os_all_ports:
-        if os_port.status == PORT_DOWN_STATUS:
-            logger.info(f"Delete unused port {os_port.name} ({os_port.id}, {os_port.status}).")
+        if os_port.status == PORT_DOWN_STATUS and not os_port.device_id:
+            logger.info(
+                f"Delete unused port {os_port.name} ({os_port.id}, {os_port.status}, {os_port.device_id or 'None'})."
+            )
             try:
                 os_conn.delete_port(os_port.id)
             except OpenStackCloudException as e:
