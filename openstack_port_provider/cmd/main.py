@@ -216,7 +216,12 @@ def main(
 
         # find out what subnets are missing on the server
         os_expected_subnet_ids = set(os_expected_subnets.keys())
-        os_missing_subnet_ids = set(os_expected_subnet_ids) - set(os_actual_subnet_ids)
+
+        # on "boot" we declare all are missing
+        if networking_config_handler.should_apply:
+            os_missing_subnet_ids = os_expected_subnet_ids
+        else:
+            os_missing_subnet_ids = os_expected_subnet_ids - set(os_actual_subnet_ids)
 
         logger.debug(
             msg=(
@@ -248,7 +253,8 @@ def main(
             if port_tags:
                 os_conn.network.set_tags(os_port, port_tags)
 
-            os_conn.compute.create_server_interface(os_server.id, port_id=os_port.id)
+            if not os_port.device_id:
+                os_conn.compute.create_server_interface(os_server.id, port_id=os_port.id)
 
             # wait for port become active
             if wait_for_port:

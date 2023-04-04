@@ -16,8 +16,6 @@ class NetplanNetworkingConfigHandler(BaseNetworkingConfigHandler):
         super().__init__()
         self.logger = logging.getLogger(__name__)
         self.apply_cmd = apply_cmd
-        # Note(sprietl): Assume (for simplicity) that on startup the network config has to be applied.
-        self.should_apply = True
 
     def create(
         self,
