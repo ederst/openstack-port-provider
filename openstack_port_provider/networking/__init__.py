@@ -1,5 +1,6 @@
 from enum import Enum
 
+from .base import BaseNetworkingConfigHandler
 from .netplan import NetplanNetworkingConfigHandler
 
 
@@ -7,7 +8,7 @@ class NetworkingConfigType(str, Enum):
     netplan = "netplan"
 
 
-def get_networking_config_handler(config_type: NetworkingConfigType, **kwargs):
+def get_networking_config_handler(config_type: NetworkingConfigType, **kwargs) -> BaseNetworkingConfigHandler:
     if config_type == NetworkingConfigType.netplan:
         if "apply_cmd" in kwargs:
             return NetplanNetworkingConfigHandler(apply_cmd=kwargs['apply_cmd'])
