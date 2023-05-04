@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, List
 
+import psutil
 import yaml
 
 from ..base import BaseNetworkingConfigHandler
@@ -27,7 +28,22 @@ class NetplanNetworkingConfigHandler(BaseNetworkingConfigHandler):
         # Note(sprietl):
         #   This is a naive approach on how to number the interfaces.
         #   But for complexity reasons we leave it for now like this.
+        # TODO(sprietl):
+        #   This is a bug, when adding multiple interfaces name stays the same.
+        #   Move to loop, and make sure if is unique.
         if_number = INTERFACE_NUMBER_OFFSET
+        networking_if_name = f"ens{if_number}"
+
+        net_if_stats = psutil.net_if_stats()
+        # TODO(sprietl):
+        #   * Test if if is up as well (net_if_stats[networking_if_name].isup)?
+        #   * Make configurable if this should lead to abort, or error, for now just ignore and warn.
+        if networking_if_name in net_if_stats:
+            self.logger.warning(
+                f"Interface with name {networking_if_name} already exists, not creating/applying network config."
+            )
+            self.should_apply = False
+            return
 
         if len(os_port.fixed_ips) > 1:
             self.logger.warning(f"Port '{os_port.name}' has more than one IP address ({os_port.fixed_ips}).")
@@ -39,7 +55,6 @@ class NetplanNetworkingConfigHandler(BaseNetworkingConfigHandler):
         if os_port_subnet_id != os_subnet.id:
             raise ValueError(f"Provided port '{os_port.name}' is not in provided subnet '{os_subnet.name}'")
 
-        networking_if_name = f"ens{if_number}"
         config_base_name = f"51-{NAME_PREFIX}-{networking_if_name}.yaml"
         config_path = config_destination / config_base_name
 
